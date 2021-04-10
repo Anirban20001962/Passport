@@ -1,12 +1,14 @@
 const express = require('express')
 const path = require('path')
+require('dotenv').config()
 const passport = require('passport')
 const mongoose = require('mongoose')
 const session = require('express-session')
 const app = express()
-const database_URI = ''
+const database_URI = process.env.DATABASE_URI
 const User = require('./models/User')
 const {signup,login} = require('./controller/user')
+let GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 
 const isAuthenticated = (req, res, next) => {
     if(req.isAuthenticated()) {
@@ -27,12 +29,36 @@ let activeUsers = new Map()
 app.use(express.urlencoded({extended: false}))
 app.use(express.static('public'));
 app.use(session({
-    secret: "keyissecret",
+    secret: process.env.SESSION_SECRET,
     resave: true,
     saveUninitialized: false
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+
+passport.use(new GoogleStrategy({
+    clientID: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRET,
+    callbackURL: "/auth/google/callback"
+  },
+  function(accessToken, refreshToken, profile, done) {
+       User.findOne({googleId: profile.id})
+       .then((user) => {
+           if(!user) {
+               const user = new User({username: profile.emails[0].value,googleId: profile.id})
+               return user.save()
+           }
+           return user
+       })
+       .then((user) => {
+           return done(null,user);
+       })
+       .catch((err) => {
+           console.log(err);
+           return done(err,null);
+       })
+  }
+));
 
 passport.use(User.createStrategy());
 passport.serializeUser(User.serializeUser());
@@ -50,7 +76,19 @@ app.get('/login',(req,res,next) => {
     res.sendFile('login.html', { root: path.join(__dirname, '/public') });
 })
 
-app.post('/signup',signup);
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['email'] })
+);
+
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  function(req, res) {
+    res.redirect('/');
+});
+
+app.post('/signup',(req,res,next) => {
+    signup(req,res,next,activeUsers);
+});
 
 app.post('/login',checkSameUser,(req,res,next) => {
     login(req,res,next,activeUsers);

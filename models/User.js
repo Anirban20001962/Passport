@@ -8,6 +8,9 @@ const userSchema = new Schema({
     }
     ,password:{
         type: String
+    },
+    googleId: {
+        type: String
     }
 })
 userSchema.methods.validPassword = ( pwd ) => {

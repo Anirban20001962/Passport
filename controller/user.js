@@ -1,8 +1,8 @@
 const User = require('../models/User');
 const passport = require('passport');
 
-exports.signup = (req,res,next) => {
-    User.register({username: req.body.username},req.body.password)
+exports.signup = (req,res,next,activeUsers) => {
+    User.register({username: req.body.username, googleId: null},req.body.password)
     .then((user) => {
         passport.authenticate('local')(req,res,() => {
             activeUsers.set(user.username,user);
